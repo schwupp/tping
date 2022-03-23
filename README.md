@@ -23,3 +23,30 @@ If you use tping script, you only get one line per status-change. You have to re
 
 - What you lose, is the continous reading of the RTT (you only get the first one)
 - What you win is a clear, timestamped view when and how long a target host went off or online
+
+## Installation
+- download latest release
+- copy tping.sh to your linux machine
+- make script executable
+
+        schwupp@linux:~$ chmod +x tping.sh
+
+- take a look at the parameters
+
+        schwupp@linux:~$ tping.sh -h
+
+- ping your first target with IP or Hostname
+
+        schwupp@linux:~$ tping.sh 8.8.8.8
+        
+## Additional Parameters/Features
+#### debug/verbose output (-d)
+print some verbose output with -d switch
+#### deadtime (-W \<seconds\>)
+Specify timeout of ping in seconds, simply passed to wrapped ping command
+#### interval (-i \<seconds\>)
+Specify interval of backgroung-pings. **Not** depending on wrapped ping command. Default 1 second.
+#### fuzzy-logic (-f \<# of pings\>)
+Number of pings that may fail, but still keep target status "up". Target will go "down" after #+1 failed pings. Useful to set >0 on unrealiable networks like cellular, where packetloss is expected. Default 0, so target goes "down" after the 0+1 = first failed ping.
+#### AAAA DNS Support
+Since v3.1 tping defaults to IPv6 (AAAA) records when resolving DNS. When AAAA-record is unavailable, tping falls back to IPv4 A-record. If you want to disable this (i.e. IPv6 is not running, script should not waste time with it), you can temporarily use "-4" switch with each command or permanently set "ipv=4" instead of "ipv=6" in preamble of the script.
