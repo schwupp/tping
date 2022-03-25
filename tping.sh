@@ -158,6 +158,10 @@ if [ $fuzzy -gt 0 ]; then
     echo -e "\nNote: fuzzy dead-detection in effect, will ignore up to $fuzzy failed pings. Use for unreliable connections only.\n"
 fi
 
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    ((deadtime = $deadtime*1000))
+fi
+
 while :; do
     result=`ping -W $deadtime -c 1 $ip | grep 'bytes from '`
     if [ $? -gt 0 ]; then
