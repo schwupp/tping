@@ -12,10 +12,11 @@
 # v3.1 2021-08-18 /schwupp - added fallback to IPv4 if no IPv6 found in DNS
 ####
 
-#actual Version
+## 0 - constants, variables, settings
+# actual Version
 VER="3.1"
 
-#user-controlled variables
+# user-controlled variables
 # default for DNS-lookup when using a hostname instead of IP-address
 # use "6" for using IPv6 lookup (AAAA-record) as default and falling back to IPv4
 # use 4 for using IPv4 lookup (A-record) only
@@ -24,7 +25,7 @@ ipv=6
 # enable(1)/disable(0) debug output
 debug=0
 
-#some other default values, mostly controlled by parameters
+# some other default values, mostly controlled by parameters
 health=2
 mytime=`date +%s`
 deadtime=1
@@ -33,7 +34,7 @@ fuzzy=0
 myfuzzy=0
 ip=0
 
-#some constants for bash-coloring
+# some constants for bash-coloring
 RED="\e[0;31m"
 GREEN="\e[0;32m"
 YELLOW="\e[0;33m"
@@ -49,7 +50,7 @@ BOLD="\e[1m"
 ULINE="\e[4m"
 RESET="\e[0m"
 
-#Time-Converter
+# time-converter
 function displaytime {
   local T=$1
   local D=$((T/60/60/24))
@@ -106,14 +107,18 @@ else
         _options $*;
 fi
 
-
-#the script begins!
+## 1 - get DNS-resolution if parameter is a hostname
+# it's an ipv4-addr-parameter
 if [[ $host =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
         hostdig=`dig +short -x $host`
         ip=$host
+        ipv=4
+# it's an ipv6-addr-parameter        
 elif [[ $host =~ (([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])) ]]; then
         hostdig=`dig +short -x $host`
         ip=$host
+        ipv=6
+# it's a name-parameter
 else
         if [ $ipv == 6 ]; then
                 hostdig=`dig AAAA +search +short $host  | grep -v '\.$'`
@@ -129,23 +134,37 @@ else
                         exit 1
                 fi
         fi
-#       hostdig=`dig +search +short $host`
-#       if [ -z $hostdig ]; then
-#               echo "No DNS for $host - exiting now."
-#               exit 1
-#       fi
-
         ip=$hostdig
 fi
 
+## 2 - build ping-cmd
+# it's macos were we running, ping binary is different especially for ipv6
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    if [ $ipv == 6 ]; then
+        if [ $deadtime != 1 ]; then
+            echo "Warning: Option -W is not supported on macOS for IPv6 and defaults to 10 seconds.\n"
+        fi
+        ping="ping6 -c 1 $ip"
+    else
+        ((deadtime=$deadtime*1000))
+        ping="ping -W $deadtime -c 1 $ip"
+    fi
+# it's linux, ping binary supports both ipv4 and ipv6 parameter
+else
+    ping="ping -W $deadtime -c 1 $ip"
+fi
+
+# output some debug, we got so far
 if [ $debug -eq 1 ]; then
         echo -e "\t####### DEBUG #######"
+        echo -e "\tos = [ $OSTYPE ]"
         echo -e "\targs = [ $# ]"
         echo -e "\tdeadtime  = [ $deadtime ]"
         echo -e "\tinterval = [ $interval ]"
         echo -e "\tfuzzy = [ $fuzzy ]"
         echo -e "\thost = [ $host ]"
         echo -e "\tip = [ $ip ]"
+        echo -e "\tping command = [ $ping ]"
         echo -e "\t####### DEBUG #######"
 fi
 
@@ -158,8 +177,9 @@ if [ $fuzzy -gt 0 ]; then
     echo -e "\nNote: fuzzy dead-detection in effect, will ignore up to $fuzzy failed pings. Use for unreliable connections only.\n"
 fi
 
+## 3 - do the ping in loop
 while :; do
-    result=`ping -W $deadtime -c 1 $ip | grep 'bytes from '`
+    result=`$ping | grep 'bytes from '`
     if [ $? -gt 0 ]; then
         myfuzzy=$((myfuzzy + 1))
         if [ $myfuzzy -gt $fuzzy ]; then
