@@ -78,7 +78,7 @@ _options ()
                         d ) debug=1 ;;
                         h ) usage
                                 exit 0;;
-                        v ) echo -e "$(basename $0) v$VER by langc"
+                        v ) echo -e "$(basename $0) v$VER by schwupp"
                                 exit 0;;
                         \? )
                                 echo "Invalid option: -$OPTARG" >&2
