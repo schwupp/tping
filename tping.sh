@@ -157,6 +157,7 @@ fi
 # output some debug, we got so far
 if [ $debug -eq 1 ]; then
         echo -e "\t####### DEBUG #######"
+        echo -e "\tos = [ $OSTYPE ]"
         echo -e "\targs = [ $# ]"
         echo -e "\tdeadtime  = [ $deadtime ]"
         echo -e "\tinterval = [ $interval ]"
