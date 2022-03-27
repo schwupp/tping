@@ -111,9 +111,11 @@ fi
 if [[ $host =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
         hostdig=`dig +short -x $host`
         ip=$host
+        ipv=4
 elif [[ $host =~ (([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])) ]]; then
         hostdig=`dig +short -x $host`
         ip=$host
+        ipv=6
 else
         if [ $ipv == 6 ]; then
                 hostdig=`dig AAAA +search +short $host  | grep -v '\.$'`
@@ -138,6 +140,20 @@ else
         ip=$hostdig
 fi
 
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    if [ $ipv == 6 ]; then
+        if [ $deadtime != 1 ]; then
+            echo "Warning: Option -W is not supported on macOS for IPv6 and defaults to 10 seconds.\n"
+        fi
+        ping="ping6 -c 1 $ip"
+    else
+        ((deadtime=$deadtime*1000))
+        ping="ping -W $deadtime -c 1 $ip"
+    fi
+else
+    ping="ping -W $deadtime -c 1 $ip"
+fi
+
 if [ $debug -eq 1 ]; then
         echo -e "\t####### DEBUG #######"
         echo -e "\targs = [ $# ]"
@@ -146,6 +162,7 @@ if [ $debug -eq 1 ]; then
         echo -e "\tfuzzy = [ $fuzzy ]"
         echo -e "\thost = [ $host ]"
         echo -e "\tip = [ $ip ]"
+        echo -e "\tping command = [ $ping ]"
         echo -e "\t####### DEBUG #######"
 fi
 
@@ -158,12 +175,8 @@ if [ $fuzzy -gt 0 ]; then
     echo -e "\nNote: fuzzy dead-detection in effect, will ignore up to $fuzzy failed pings. Use for unreliable connections only.\n"
 fi
 
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    ((deadtime = $deadtime*1000))
-fi
-
 while :; do
-    result=`ping -W $deadtime -c 1 $ip | grep 'bytes from '`
+    result=`$ping | grep 'bytes from '`
     if [ $? -gt 0 ]; then
         myfuzzy=$((myfuzzy + 1))
         if [ $myfuzzy -gt $fuzzy ]; then
