@@ -10,11 +10,12 @@
 # v2.2 2017-01-25 /schwupp - added -f fuzzy dead-detection option
 # v3.0 2020-08-10 /schwupp - added support for IPv6 (switch -6)
 # v3.1 2021-08-18 /schwupp - added fallback to IPv4 if no IPv6 found in DNS
+# v4.0 2022-03-27 /lippl - added support for macos
 ####
 
 ## 0 - constants, variables, settings
 # actual Version
-VER="3.1"
+VER="4.0"
 
 # user-controlled variables
 # default for DNS-lookup when using a hostname instead of IP-address
