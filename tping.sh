@@ -239,7 +239,7 @@ while :; do
         fi
     else
         received=$((received + 1))
-        rtt[$transmitted]=$(echo "$result" | cut -d ':' -f 2 | cut -d ' ' -f 4 | cut -d "=" -f 2)
+        rtt[$transmitted]=$(echo "$result" | cut -d "=" -f 4  | cut -d ' ' -f 1)
         myfuzzy=0
         if [[ $health -eq 2 ]] ;then
             echo -e "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${GREEN}ok${RESET} | RTT ${rtt[$transmitted]}ms"
