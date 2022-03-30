@@ -103,7 +103,10 @@ function displaytime {
 }
 
 usage () {
-    echo -e "\tusage: $(basename "$0") [-vhd4] [-W deadtime] [-i interval] [-f fuzzy-pings (# failed pings before marking down)] [-4 use IPv4-only for DNS-lookup] <Traget IP or DNS-Name>"
+    echo -e "usage: $(basename "$0") [-vhd4] [-W deadtime] [-i interval]
+            \t[-f fuzzy-pings (# failed pings before marking down)]
+            \t[-4 (use IPv4-only for DNS-lookup)]
+            \t<Traget IP or DNS-Name>"
 }
 
 _options () {
@@ -120,9 +123,11 @@ _options () {
                 exit 0;;
             \? )
                 echo "Invalid option: -$OPTARG" >&2
+                usage
                 exit 1;;
             : )
                 echo "Option -$OPTARG requires an argument." >&2
+                usage
                 exit 1
         esac
     done
