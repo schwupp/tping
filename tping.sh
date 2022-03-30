@@ -51,6 +51,52 @@ BOLD="\e[1m"
 ULINE="\e[4m"
 RESET="\e[0m"
 
+# some statistical values
+transmitted=0
+received=0
+down=0
+downsec=0
+up=0
+upsec=0
+flap=0
+rtt=()
+
+# print final statistics on exit
+function print_statistics() {
+    echo -e "\n--- $host ($hostdig) tping statistics ---"
+
+    if [ $health -eq 1 ]; then
+        upsec=`date +%s`-$mytime
+        up=$((up + upsec))
+    elif [ $health -eq 0 ] ;then
+        downsec=`date +%s`-$mytime
+        down=$((down + downsec))
+    fi
+    echo -e "flapped $flap times, was up for $(displaytime $up) and down for $(displaytime $down)"
+
+    local loss=$(echo "scale=2;100-$received/$transmitted*100" | bc -l)
+    echo -e "$transmitted packets transmitted, $received packets received, $loss% packet loss"
+
+    local rtt_min=0
+    local rtt_max=0
+    local rtt_avg=0
+    [[ ! -z "${rtt[1]}" ]] && rtt_min=${rtt[1]}
+    for t in ${rtt[@]}; do
+        rtt_avg=$(echo "scale=3;$rtt_avg + $t" | bc -l)
+        if (($(echo "$t > $rtt_max" | bc -l))); then
+            rtt_max=$t
+        fi
+        if (($(echo "$t < $rtt_min" | bc -l))); then
+            rtt_min=$t
+        fi
+    done
+    rtt_avg=$(echo "scale=3;$rtt_avg/$transmitted" | bc -l)
+    echo -e "round-trip min/avg/max = $rtt_min/$rtt_avg/$rtt_max ms"
+
+    exit 0
+}
+trap print_statistics INT
+
 # time-converter
 function displaytime {
   local T=$1
@@ -180,6 +226,7 @@ fi
 
 ## 3 - do the ping in loop
 while :; do
+    transmitted=$((transmitted + 1))
     result=`$ping | grep 'bytes from '`
     if [ $? -gt 0 ]; then
         myfuzzy=$((myfuzzy + 1))
@@ -187,19 +234,25 @@ while :; do
                 if [ $health -eq 2 ]; then
                         echo -e "`date +'%Y-%m-%d %H:%M:%S'` | host $host ($hostdig) is \033[0;31mdown\033[0m"
                 elif [ $health -eq 1 ]; then
-                        deadsec=`date +%s`-$mytime
-                        echo -e "`date +'%Y-%m-%d %H:%M:%S'` | host $host ($hostdig) is \033[0;31mdown\033[0m [ok for $(displaytime $deadsec)]"
+                        upsec=`date +%s`-$mytime
+                        up=$((up + upsec))
+                        flap=$((flap + 1))
+                        echo -e "`date +'%Y-%m-%d %H:%M:%S'` | host $host ($hostdig) is \033[0;31mdown\033[0m [ok for $(displaytime $upsec)]"
                 mytime=`date +%s`
                 fi
                 health=0
         fi
     else
+        received=$((received + 1))
+        rtt[$transmitted]=`echo $result | cut -d ':' -f 2 | cut -d ' ' -f 4 | cut -d "=" -f 2`
         myfuzzy=0
         if [ $health -eq 2 ] ;then
-                echo -e "`date +'%Y-%m-%d %H:%M:%S'` | host $host ($hostdig) is \033[0;32mok\033[0m | RTT `echo $result | cut -d ':' -f 2 | cut -d ' ' -f 4 | cut -d "=" -f 2`ms"
+                echo -e "`date +'%Y-%m-%d %H:%M:%S'` | host $host ($hostdig) is \033[0;32mok\033[0m | RTT ${rtt[$transmitted]}ms"
         elif [ $health -eq 0 ] ;then
-                deadsec=`date +%s`-$mytime
-                echo -e "`date +'%Y-%m-%d %H:%M:%S'` | host $host ($hostdig) is \033[0;32mok\033[0m [down for $(displaytime $deadsec)] | RTT `echo $result | cut -d ':' -f 2 | cut -d ' ' -f 4 | cut -d "=" -f 2`ms"
+                downsec=`date +%s`-$mytime
+                down=$((down + downsec))
+                flap=$((flap + 1))
+                echo -e "`date +'%Y-%m-%d %H:%M:%S'` | host $host ($hostdig) is \033[0;32mok\033[0m [down for $(displaytime $downsec)] | RTT ${rtt[$transmitted]}ms"
         mytime=`date +%s`
         fi
         health=1
