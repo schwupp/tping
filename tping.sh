@@ -64,6 +64,9 @@ function print_statistics() {
     fi
     echo "flapped $flap times, was up for $(displaytime $up) and down for $(displaytime $down)"
 
+    # check if 'bc' is installed on system, if yes print detailed (floating point) statistics
+    if [[ -n $(which bc) ]]; then
+    
     local loss
     loss=$(echo "scale=2;100-$received/$transmitted*100" | bc -l)
     echo "$transmitted packets transmitted, $received packets received, $loss% packet loss"
@@ -83,6 +86,12 @@ function print_statistics() {
     done
     rtt_avg=$(echo "scale=3;$rtt_avg/$transmitted" | bc -l)
     echo "round-trip min/avg/max = $rtt_min/$rtt_avg/$rtt_max ms"
+
+    # if no 'bc' is there, print hint
+    else
+        echo -e "$transmitted packets transmitted, $received packets received\n"
+        echo "info: basic statistics only, please install 'bc' to get extended rtt-stats."
+    fi
 
     exit 0
 }
