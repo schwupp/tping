@@ -3,19 +3,23 @@
 ####
 # - Timestamp-Ping -
 # log ping-timestamps of a target host
+#
 # versions prior to git control
 # v0.9 2015-08-19 /schwupp
 # v1.0 2015-09-17 /schwupp - Final Release, added 'displaytime' to get convenient display of seconds
 # v2.1 2017-01-02 /schwupp - added -d debug-option
 # v2.2 2017-01-25 /schwupp - added -f fuzzy dead-detection option
 # v3.0 2020-08-10 /schwupp - added support for IPv6 (switch -6)
+#
+# git version control
 # v3.1 2021-08-18 /schwupp - added fallback to IPv4 if no IPv6 found in DNS
-# v4.0 2022-03-27 /lippl - added support for macos
+# v4.0 2022-03-27 /lippl - added support for macos, PR #1
+# v5.0 2024-02-04 /lippl - stats-on-exit, PR #4
 ####
 
 ## 0 - constants, variables, settings
 # actual Version
-VER="4.0"
+VER="5.0"
 
 # user-controlled variables
 # default for DNS-lookup when using a hostname instead of IP-address
@@ -128,7 +132,7 @@ _options () {
 			d ) debug=1 ;;
 			h ) usage
 				exit 0;;
-			v ) echo "$(basename "$0") v$VER by schwupp"
+			v ) echo "$(basename "$0") v$VER"
 				exit 0;;
 			\? )
 				echo "Invalid option: -$OPTARG" >&2
