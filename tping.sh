@@ -32,13 +32,20 @@ ipv=6
 debug=0
 
 # some other default values, mostly controlled by parameters
+#health stores tristate value meaning 0=dead, 1=alive, 2=ontime-startup-only-state (dead or alive)
 health=2
 mytime=$(date +%s)
+#parameter for ping binary
 deadtime=1
+#time between pings. as we doing only single pings this is use as internal delay parameter 
 interval=1
+#paramter for fuzzy-dead detection
 fuzzy=0
 myfuzzy=0
+#version of ip-protocol to be used (4/6)
 ip=0
+#follow-function (on/off)
+follow=1
 
 # some constants for bash-coloring
 RED="\033[0;31m"
@@ -56,6 +63,7 @@ upsec=0
 flap=0
 rtt=()
 
+# Functions
 # print final statistics on exit
 function print_statistics() {
 	echo -e "\n--- $host ($hostdig) tping statistics ---"
@@ -241,7 +249,7 @@ while :; do
 	if [[ $rv -gt 0 ]]; then
 		myfuzzy=$((myfuzzy + 1))
 		if [[ $myfuzzy -gt "$fuzzy" ]]; then
-			if [[ $health -eq 2 ]]; then
+			if [[ $health -eq 2 ]]; then #start to down
 				echo -e "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${RED}down${RESET}"
 			elif [[ $health -eq 1 ]]; then
 				upsec=$(date +%s)-$mytime
@@ -252,11 +260,11 @@ while :; do
 			fi
 			health=0
 		fi
-	else
+	else #ping successful
 		received=$((received + 1))
 		rtt[$transmitted]=$(echo "$result" | cut -d "=" -f 4  | cut -d ' ' -f 1)
 		myfuzzy=0
-		if [[ $health -eq 2 ]] ;then
+		if [[ $health -eq 2 ]]; then #start to up
 			echo -e "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${GREEN}ok${RESET} | RTT ${rtt[$transmitted]}ms"
 		elif [[ $health -eq 0 ]] ;then
 			downsec=$(date +%s)-$mytime
