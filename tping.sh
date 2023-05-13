@@ -38,6 +38,7 @@ interval=1
 fuzzy=0
 myfuzzy=0
 ip=0
+statint=10
 
 # some constants for bash-coloring
 RED="\033[0;31m"
@@ -54,6 +55,32 @@ up=0
 upsec=0
 flap=0
 rtt=()
+rtt_min=0
+rtt_max=0
+rtt_avg=0
+
+# calc interval statistics
+function calc_statistics() {
+	# check if 'bc' is installed on system, if yes calc detailed (floating point) statistics
+	if [[ -n $(which bc) ]]; then
+
+		[[ -n "${rtt[1]}" ]] && [[ -n $rtt_min ]] && rtt_min=${rtt[1]}
+		
+		local stat_cycles=$(($received / $statint))
+		rtt_avg=$(echo "scale=3;$rtt_avg * $statint * $stat_cycles" | bc -l)
+		for t in "${rtt[@]}"; do
+			rtt_avg=$(echo "scale=3;$rtt_avg + $t" | bc -l)
+			if (($(echo "$t > $rtt_max" | bc -l))); then
+				rtt_max=$t
+			fi
+			if (($(echo "$t < $rtt_min" | bc -l))); then
+				rtt_min=$t
+			fi
+		done
+		rtt_avg=$(echo "scale=3;$rtt_avg/$received" | bc -l)
+		rtt=()
+	fi
+}
 
 # print final statistics on exit
 function print_statistics() {
@@ -70,27 +97,12 @@ function print_statistics() {
 
 	# check if 'bc' is installed on system, if yes print detailed (floating point) statistics
 	if [[ -n $(which bc) ]]; then
+		local loss
+		loss=$(echo "scale=2;100-$received/$transmitted*100" | bc -l)
+		echo "$transmitted packets transmitted, $received packets received, $loss% packet loss"
 
-	local loss
-	loss=$(echo "scale=2;100-$received/$transmitted*100" | bc -l)
-	echo "$transmitted packets transmitted, $received packets received, $loss% packet loss"
-
-	local rtt_min=0
-	local rtt_max=0
-	local rtt_avg=0
-	[[ -n "${rtt[1]}" ]] && rtt_min=${rtt[1]}
-	for t in "${rtt[@]}"; do
-		rtt_avg=$(echo "scale=3;$rtt_avg + $t" | bc -l)
-		if (($(echo "$t > $rtt_max" | bc -l))); then
-			rtt_max=$t
-		fi
-		if (($(echo "$t < $rtt_min" | bc -l))); then
-			rtt_min=$t
-		fi
-	done
-	rtt_avg=$(echo "scale=3;$rtt_avg/$transmitted" | bc -l)
-	echo "round-trip min/avg/max = $rtt_min/$rtt_avg/$rtt_max ms"
-
+		calc_statistics
+		echo "round-trip min/avg/max = $rtt_min/$rtt_avg/$rtt_max ms"
 	# if no 'bc' is there, print hint
 	else
 		echo -e "$transmitted packets transmitted, $received packets received\n"
@@ -252,8 +264,12 @@ while :; do
 		fi
 	else
 		received=$((received + 1))
-		rtt[$transmitted]=$(echo "$result" | cut -d "=" -f 4  | cut -d ' ' -f 1)
-		myfuzzy=0
+		stat_cnt=$(($received % $statint))
+		rtt[$stat_cnt]=$(echo "$result" | cut -d "=" -f 4  | cut -d ' ' -f 1)
+		if [[ $stat_cnt -eq 0 ]]; then
+			calc_statistics
+		fi
+
 		if [[ $health -eq 2 ]] ;then
 			echo -e "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${GREEN}ok${RESET} | RTT ${rtt[$transmitted]}ms"
 		elif [[ $health -eq 0 ]] ;then
@@ -264,6 +280,7 @@ while :; do
 			mytime=$(date +%s)
 		fi
 		health=1
+		myfuzzy=0
 		# delay between pings
 		sleep "$interval"
 	fi
