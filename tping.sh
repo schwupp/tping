@@ -82,10 +82,8 @@ function calc_statistics() {
 	fi
 }
 
-# print final statistics on exit
-function print_statistics() {
-	echo -e "\n--- $host ($hostdig) tping statistics ---"
-
+# calc interval statistics
+function calc_updowntimes() {
 	if [[ $health -eq 1 ]]; then
 		upsec=$(date +%s)-$mytime
 		up=$((up + upsec))
@@ -93,6 +91,13 @@ function print_statistics() {
 		downsec=$(date +%s)-$mytime
 		down=$((down + downsec))
 	fi
+	mytime=$(date +%s)
+}
+
+# print final statistics on exit
+function print_statistics() {
+	echo -e "\n--- $host ($hostdig) tping statistics ---"
+	calc_updowntimes
 	echo "flapped $flap times, was up for $(displaytime $up) and down for $(displaytime $down)"
 
 	# check if 'bc' is installed on system, if yes print detailed (floating point) statistics
@@ -254,11 +259,9 @@ while :; do
 			if [[ $health -eq 2 ]]; then
 				echo -e "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${RED}down${RESET}"
 			elif [[ $health -eq 1 ]]; then
-				upsec=$(date +%s)-$mytime
-				up=$((up + upsec))
+				calc_updowntimes
 				flap=$((flap + 1))
 				echo -e "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${RED}down${RESET} [ok for $(displaytime "$upsec")]"
-				mytime=$(date +%s)
 			fi
 			health=0
 		fi
@@ -273,11 +276,9 @@ while :; do
 		if [[ $health -eq 2 ]] ;then
 			echo -e "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${GREEN}ok${RESET} | RTT ${rtt[$transmitted]}ms"
 		elif [[ $health -eq 0 ]] ;then
-			downsec=$(date +%s)-$mytime
-			down=$((down + downsec))
+			calc_updowntimes
 			flap=$((flap + 1))
 			echo -e "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${GREEN}ok${RESET} [down for $(displaytime "$downsec")] | RTT ${rtt[$transmitted]}ms"
-			mytime=$(date +%s)
 		fi
 		health=1
 		myfuzzy=0
