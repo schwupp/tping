@@ -14,12 +14,13 @@
 # git version control
 # v3.1 2021-08-18 /schwupp - added fallback to IPv4 if no IPv6 found in DNS
 # v4.0 2022-03-27 /lippl - added support for macos, PR #1
-# v5.0 2024-02-04 /lippl - stats-on-exit, PR #4
+# v5.0 2023-02-04 /lippl - stats-on-exit, PR #4
+# v5.1 2023-05-26 /schwupp - fix match/grep of ping-cmd in linux/macos
 ####
 
 ## 0 - constants, variables, settings
 # actual Version
-VER="5.0"
+VER="5.1"
 
 # user-controlled variables
 # default for DNS-lookup when using a hostname instead of IP-address
