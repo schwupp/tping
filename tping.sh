@@ -235,8 +235,9 @@ fi
 ## 3 - do the ping in loop
 while :; do
 	transmitted=$((transmitted + 1))
-	result=$($ping | grep 'icmp_seq=')
-	if [[ $? -gt 0 ]]; then
+	result=$($ping | grep 'icmp_seq=.*time=')
+	rv=$?
+	if [[ $rv -gt 0 ]]; then
 		myfuzzy=$((myfuzzy + 1))
 		if [[ $myfuzzy -gt "$fuzzy" ]]; then
 			if [[ $health -eq 2 ]]; then
