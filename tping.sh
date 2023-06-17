@@ -257,10 +257,12 @@ while :; do
 		if [[ $myfuzzy -gt "$fuzzy" ]]; then
 			if [[ $health -eq 2 ]]; then #start to down
 				lastdowntime=$(date +%s)
+				tput rc; tput el
 				if [ $debug -eq 1 ]; then
 					echo -en "debug:STD;result=$result;rv=$rv;health=$health "
 				fi
 				echo -e "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${RED}down${RESET}"
+				tput sc
 				health=0
 			elif [[ $health -eq 1 ]]; then #up to down
 				lastdowntime=$(date +%s)
@@ -294,10 +296,12 @@ while :; do
 		myfuzzy=0
 		if [[ $health -eq 2 ]]; then #start to up
 			lastuptime=$(date +%s)
+			tput rc; tput el
 			if [ $debug -eq 1 ]; then
 				echo -en "debug:STU;result=$result;rv=$rv;health=$health "
 			fi
 			echo -e "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${GREEN}ok${RESET} | RTT ${rtt[$transmitted]}ms"
+			tput sc
 			health=1
 		elif [[ $health -eq 0 ]]; then #down to up
 			tput rc; tput el
