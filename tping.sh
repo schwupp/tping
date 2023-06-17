@@ -40,8 +40,13 @@ deadtime=1
 #time between pings. as we doing only single pings this is use as internal delay parameter 
 interval=1
 #paramter for fuzzy-dead detection
-fuzzy=0
-myfuzzy=0
+fuzzy_limit=0
+# counter for total lost pings during all fuzzy detections
+fuzzy_lost=0
+# counter for total occurrences of fuzzy detections
+fuzzy_total=0
+# counter for current fuzzy detection
+fuzzy_cnt=0
 #version of ip-protocol to be used (4/6)
 ip=0
 #follow-function (on/off)
@@ -78,6 +83,11 @@ function print_statistics() {
 		downtotal=$((downtotal + downsec))
 	fi
 	echo "flapped $flap times, was up for $(displaytime $uptotal) and down for $(displaytime $downtotal)"
+
+	# if fuzzy detection is enabled and was detected before, print counters
+	if [ $fuzzy_limit -gt 0 ] && [ $fuzzy_total -gt 0 ]; then
+		echo "fuzzy detection was used $fuzzy_total times, with a total of $fuzzy_lost lost pings"
+	fi
 
 	# check if 'bc' is installed on system, if yes print detailed (floating point) statistics
 	if [[ -n $(which bc) ]]; then
@@ -140,7 +150,7 @@ _options () {
 			4 ) ipv=4 ;;
 			W ) deadtime=$OPTARG ;;
 			i ) interval=$OPTARG ;;
-			f ) fuzzy=$OPTARG ;;
+			f ) fuzzy_limit=$OPTARG ;;
 			s ) follow=0 ;;
 			d ) debug=1 ;;
 			h ) usage
@@ -229,7 +239,7 @@ if [[ $debug -eq 1 ]]; then
 	echo -e "\targs = [ $# ]"
 	echo -e "\tdeadtime  = [ $deadtime ]"
 	echo -e "\tinterval = [ $interval ]"
-	echo -e "\tfuzzy = [ $fuzzy ]"
+	echo -e "\tfuzzy = [ $fuzzy_limit ]"
 	echo -e "\tfollow = [ $follow ]"
 	echo -e "\thost = [ $host ]"
 	echo -e "\tip = [ $ip ]"
@@ -242,8 +252,8 @@ if [[ -z "$host" ]]; then
 	exit 1
 fi
 
-if [[ "$fuzzy" -gt 0 ]]; then
-	echo -e "\nNote: fuzzy dead-detection in effect, will ignore up to $fuzzy failed pings (you will see a --FUZZY-- indicator if in action). Use for unreliable connections only.\n"
+if [[ "$fuzzy_limit" -gt 0 ]]; then
+	echo -e "\nNote: fuzzy dead-detection in effect, will ignore up to $fuzzy_limit failed pings (you will see a --FUZZY-- indicator if in action). Use for unreliable connections only.\n"
 fi
 
 ## 3 - do the ping in loop
@@ -253,8 +263,8 @@ while :; do
 	result=$($ping | grep 'icmp_seq=.*time=')
 	rv=$?
 	if [[ $rv -gt 0 ]]; then
-		myfuzzy=$((myfuzzy + 1))
-		if [[ $myfuzzy -gt "$fuzzy" ]]; then
+		fuzzy_cnt=$((fuzzy_cnt + 1))
+		if [[ $fuzzy_cnt -gt "$fuzzy_limit" ]]; then
 			if [[ $health -eq 2 ]]; then #start to down
 				lastdowntime=$(date +%s)
 				tput rc; tput el
@@ -285,7 +295,7 @@ while :; do
 				echo -en "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${RED}down${RESET} for $(displaytime "$downsec")"
 			fi
 		else #we're in fuzzy-detection now. pings fail, but will not consider down
-			if [ $myfuzzy -eq 1 ]; then #only on 1st fuzzy-ping, show hint, next successful ping will clear whole line
+			if [ $fuzzy_cnt -eq 1 ]; then #only on 1st fuzzy-ping, show hint, next successful ping will clear whole line
 				echo -n " --FUZZY--"
 			fi
 			#NOP - for the user it's like pausing output what we tried to eliminate. this is the only point where tping behaves like that, but may be ok in this cornercase.
@@ -293,7 +303,6 @@ while :; do
 	else #ping successful
 		received=$((received + 1))
 		rtt[$transmitted]=$(echo "$result" | cut -d "=" -f 4  | cut -d ' ' -f 1)
-		myfuzzy=0
 		if [[ $health -eq 2 ]]; then #start to up
 			lastuptime=$(date +%s)
 			tput rc; tput el
@@ -323,6 +332,14 @@ while :; do
 			fi
 			echo -en "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${GREEN}ok${RESET} for $(displaytime "$upsec") | RTT ${rtt[$transmitted]}ms"
 		fi
+
+		# update fuzzy stats if fuzzy detection is enabled and was detected
+		if [[ $fuzzy_limit -gt 0 ]] && [[ $fuzzy_cnt -gt 0 ]]; then
+			fuzzy_total=$((fuzzy_total + 1))
+			fuzzy_lost=$((fuzzy_lost + fuzzy_cnt))
+		fi
+		fuzzy_cnt=0
+
 		# delay between pings
 		sleep "$interval"
 	fi
