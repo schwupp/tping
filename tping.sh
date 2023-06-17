@@ -45,6 +45,8 @@ follow=1
 health=2
 # placeholder for ther target ip to be filled after format checks respectively dns lookup
 ip=0
+# interval of successfull pings to intermediately calculate the statistic values for better performance at the end
+statint=10
 
 ## statistical values
 # counter for total lost pings during all fuzzy detections
@@ -71,8 +73,11 @@ lastuptime=0
 lastdowntime=0
 # total number of flaps between up and down
 flap=0
-# array to store all rtt times for statistics
+# array to store all rtt times within statistics interval (statint)
 rtt=()
+rtt_min=0
+rtt_max=0
+rtt_avg=0
 
 ## constants for bash-coloring
 RED="\033[0;31m"
@@ -136,6 +141,29 @@ function displaytime {
 	printf '%d sec\n' $S
 }
 
+# calc interval statistics
+function calc_statistics() {
+	# check if 'bc' is installed on system, if yes calc detailed (floating point) statistics
+	if [[ -n $(which bc) ]]; then
+
+		[[ -n "${rtt[1]}" ]] && [[ -n $rtt_min ]] && rtt_min=${rtt[1]}
+		
+		local stat_cycles=$(($received / $statint))
+		rtt_avg=$(echo "scale=3;$rtt_avg * $statint * $stat_cycles" | bc -l)
+		for t in "${rtt[@]}"; do
+			rtt_avg=$(echo "scale=3;$rtt_avg + $t" | bc -l)
+			if (($(echo "$t > $rtt_max" | bc -l))); then
+				rtt_max=$t
+			fi
+			if (($(echo "$t < $rtt_min" | bc -l))); then
+				rtt_min=$t
+			fi
+		done
+		rtt_avg=$(echo "scale=3;$rtt_avg/$received" | bc -l)
+		rtt=()
+	fi
+}
+
 # print final statistics on exit
 function print_statistics() {
 	echo -e "\n--- $host ($hostdig) tping statistics ---"
@@ -154,29 +182,14 @@ function print_statistics() {
 		echo "fuzzy detection was used $fuzzy_total times, with a total of $fuzzy_lost lost pings"
 	fi
 
-	# check if 'bc' is installed on system, if yes print detailed (floating point) statistics
+	# check if 'bc' is installed on system, if yes calc & print detailed (floating point) statistics
 	if [[ -n $(which bc) ]]; then
+		local loss
+		loss=$(echo "scale=2;100-$received/$transmitted*100" | bc -l)
+		echo "$transmitted packets transmitted, $received packets received, $loss% packet loss"
 
-	local loss
-	loss=$(echo "scale=2;100-$received/$transmitted*100" | bc -l)
-	echo "$transmitted packets transmitted, $received packets received, $loss% packet loss"
-
-	local rtt_min=0
-	local rtt_max=0
-	local rtt_avg=0
-	[[ -n "${rtt[1]}" ]] && rtt_min=${rtt[1]}
-	for t in "${rtt[@]}"; do
-		rtt_avg=$(echo "scale=3;$rtt_avg + $t" | bc -l)
-		if (($(echo "$t > $rtt_max" | bc -l))); then
-			rtt_max=$t
-		fi
-		if (($(echo "$t < $rtt_min" | bc -l))); then
-			rtt_min=$t
-		fi
-	done
-	rtt_avg=$(echo "scale=3;$rtt_avg/$transmitted" | bc -l)
-	echo "round-trip min/avg/max = $rtt_min/$rtt_avg/$rtt_max ms"
-
+		calc_statistics
+		echo "round-trip min/avg/max = $rtt_min/$rtt_avg/$rtt_max ms"
 	# if no 'bc' is there, print hint
 	else
 		echo -e "$transmitted packets transmitted, $received packets received\n"
@@ -322,7 +335,11 @@ while :; do
 	# ping successful
 	else
 		received=$((received + 1))
-		rtt[$transmitted]=$(echo "$result" | cut -d "=" -f 4  | cut -d ' ' -f 1)
+		stat_cnt=$(($received % $statint))
+		rtt[$stat_cnt]=$(echo "$result" | cut -d "=" -f 4  | cut -d ' ' -f 1)
+		if [[ $stat_cnt -eq 0 ]]; then
+			calc_statistics
+		fi
 		# start to up
 		if [[ $health -eq 2 ]]; then
 			lastuptime=$(date +%s)
