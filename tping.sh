@@ -16,11 +16,12 @@
 # v4.0 2022-03-27 /lippl - added support for macos, PR #1
 # v5.0 2023-02-04 /lippl - stats-on-exit, PR #4
 # v5.1 2023-05-26 /schwupp - fix match/grep of ping-cmd in linux/macos
+# v6.0 2023-07-12 /schwupp - new feature: follow-mode, PR #6
 ####
 
 ## 0 - constants, variables, settings
 # actual Version
-VER="5.1_feat-followmode"
+VER="6.0"
 
 # user-controlled variables
 # default for DNS-lookup when using a hostname instead of IP-address
