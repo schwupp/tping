@@ -20,7 +20,7 @@
 
 ## 0 - constants, variables, settings
 # actual Version
-VER="5.1"
+VER="5.1_feat-followmode"
 
 # user-controlled variables
 # default for DNS-lookup when using a hostname instead of IP-address
