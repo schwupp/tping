@@ -20,7 +20,7 @@
 
 ## 0 - constants, variables, settings
 # actual Version
-VER="5.1"
+VER="5.1_feat-followmode"
 
 # user-controlled variables
 # default for DNS-lookup when using a hostname instead of IP-address
@@ -32,13 +32,19 @@ ipv=6
 debug=0
 
 # some other default values, mostly controlled by parameters
+#health stores tristate value meaning 0=dead, 1=alive, 2=ontime-startup-only-state (dead or alive)
 health=2
-mytime=$(date +%s)
+#parameter for ping binary
 deadtime=1
+#time between pings. as we doing only single pings this is use as internal delay parameter 
 interval=1
+#paramter for fuzzy-dead detection
 fuzzy=0
 myfuzzy=0
+#version of ip-protocol to be used (4/6)
 ip=0
+#follow-function (on/off)
+follow=1
 
 # some constants for bash-coloring
 RED="\033[0;31m"
@@ -47,27 +53,30 @@ YELLOW="\033[0;33m"
 RESET="\033[0m"
 
 # some statistical values
+lastuptime=0
+lastdowntime=0
 transmitted=0
 received=0
-down=0
+downtotal=0
 downsec=0
-up=0
+uptotal=0
 upsec=0
 flap=0
 rtt=()
 
+# Functions
 # print final statistics on exit
 function print_statistics() {
 	echo -e "\n--- $host ($hostdig) tping statistics ---"
 
 	if [[ $health -eq 1 ]]; then
-		upsec=$(date +%s)-$mytime
-		up=$((up + upsec))
+		upsec=$(date +%s)-$lastuptime
+		uptotal=$((uptotal + upsec))
 	elif [[ $health -eq 0 ]] ;then
-		downsec=$(date +%s)-$mytime
-		down=$((down + downsec))
+		downsec=$(date +%s)-$lastdowntime
+		downtotal=$((downtotal + downsec))
 	fi
-	echo "flapped $flap times, was up for $(displaytime $up) and down for $(displaytime $down)"
+	echo "flapped $flap times, was up for $(displaytime $uptotal) and down for $(displaytime $downtotal)"
 
 	# check if 'bc' is installed on system, if yes print detailed (floating point) statistics
 	if [[ -n $(which bc) ]]; then
@@ -120,16 +129,18 @@ usage () {
 	echo -e "usage: $(basename "$0") [-vhd4] [-W deadtime] [-i interval]
 		\t[-f fuzzy-pings (# failed pings before marking down)]
 		\t[-4 (use IPv4-only for DNS-lookup)]
+		\t[-s (use legacy static mode without rtt live-updates)]
 		\t<Traget IP or DNS-Name>"
 }
 
 _options () {
-	while getopts ":vhdW:i:f:4" opt; do :
+	while getopts ":vhdW:i:f:s4" opt; do :
 		case $opt in
 			4 ) ipv=4 ;;
 			W ) deadtime=$OPTARG ;;
 			i ) interval=$OPTARG ;;
 			f ) fuzzy=$OPTARG ;;
+			s ) follow=0 ;;
 			d ) debug=1 ;;
 			h ) usage
 				exit 0;;
@@ -218,6 +229,7 @@ if [[ $debug -eq 1 ]]; then
 	echo -e "\tdeadtime  = [ $deadtime ]"
 	echo -e "\tinterval = [ $interval ]"
 	echo -e "\tfuzzy = [ $fuzzy ]"
+	echo -e "\tfollow = [ $follow ]"
 	echo -e "\thost = [ $host ]"
 	echo -e "\tip = [ $ip ]"
 	echo -e "\tping command = [ $ping ]"
@@ -230,10 +242,11 @@ if [[ -z "$host" ]]; then
 fi
 
 if [[ "$fuzzy" -gt 0 ]]; then
-	echo -e "\nNote: fuzzy dead-detection in effect, will ignore up to $fuzzy failed pings. Use for unreliable connections only.\n"
+	echo -e "\nNote: fuzzy dead-detection in effect, will ignore up to $fuzzy failed pings (you will see a --FUZZY-- indicator if in action). Use for unreliable connections only.\n"
 fi
 
 ## 3 - do the ping in loop
+tput sc
 while :; do
 	transmitted=$((transmitted + 1))
 	result=$($ping | grep 'icmp_seq=.*time=')
@@ -241,31 +254,70 @@ while :; do
 	if [[ $rv -gt 0 ]]; then
 		myfuzzy=$((myfuzzy + 1))
 		if [[ $myfuzzy -gt "$fuzzy" ]]; then
-			if [[ $health -eq 2 ]]; then
+			if [[ $health -eq 2 ]]; then #start to down
+				lastdowntime=$(date +%s)
+				if [ $debug -eq 1 ]; then
+					echo -en "debug:STD;result=$result;rv=$rv;health=$health "
+				fi
 				echo -e "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${RED}down${RESET}"
-			elif [[ $health -eq 1 ]]; then
-				upsec=$(date +%s)-$mytime
-				up=$((up + upsec))
+				health=0
+			elif [[ $health -eq 1 ]]; then #up to down
+				lastdowntime=$(date +%s)
+				upsec=$(date +%s)-$lastuptime
+				uptotal=$((uptotal + upsec))
 				flap=$((flap + 1))
+				tput rc; tput el
+				if [ $debug -eq 1 ]; then
+					echo -en "debug:UTD;result=$result;rv=$rv;health=$health "
+				fi
 				echo -e "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${RED}down${RESET} [ok for $(displaytime "$upsec")]"
-				mytime=$(date +%s)
+				tput sc
+				health=0
+			elif [ $health -eq 0 ] && [ $follow -eq 1 ]; then #down to down
+				downsec=$(date +%s)-$lastdowntime
+				tput rc; tput el
+				if [ $debug -eq 1 ]; then
+					echo -en "debug:DTU;result=$result;rv=$rv;health=$health "
+				fi
+				echo -en "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${RED}down${RESET} for $(displaytime "$downsec")"
 			fi
-			health=0
+		else #we're in fuzzy-detection now. pings fail, but will not consider down
+			if [ $myfuzzy -eq 1 ]; then #only on 1st fuzzy-ping, show hint, next successful ping will clear whole line
+				echo -n " --FUZZY--"
+			fi
+			#NOP - for the user it's like pausing output what we tried to eliminate. this is the only point where tping behaves like that, but may be ok in this cornercase.
 		fi
-	else
+	else #ping successful
 		received=$((received + 1))
 		rtt[$transmitted]=$(echo "$result" | cut -d "=" -f 4  | cut -d ' ' -f 1)
 		myfuzzy=0
-		if [[ $health -eq 2 ]] ;then
+		if [[ $health -eq 2 ]]; then #start to up
+			lastuptime=$(date +%s)
+			if [ $debug -eq 1 ]; then
+				echo -en "debug:STU;result=$result;rv=$rv;health=$health "
+			fi
 			echo -e "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${GREEN}ok${RESET} | RTT ${rtt[$transmitted]}ms"
-		elif [[ $health -eq 0 ]] ;then
-			downsec=$(date +%s)-$mytime
-			down=$((down + downsec))
+			health=1
+		elif [[ $health -eq 0 ]]; then #down to up
+			tput rc; tput el
+			downsec=$(date +%s)-$lastdowntime
+			downtotal=$((downtotal + downsec))
 			flap=$((flap + 1))
+			if [ $debug -eq 1 ]; then
+				echo -en "debug:DTU;result=$result;rv=$rv;health=$health "
+			fi
 			echo -e "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${GREEN}ok${RESET} [down for $(displaytime "$downsec")] | RTT ${rtt[$transmitted]}ms"
-			mytime=$(date +%s)
+			tput sc
+			lastuptime=$(date +%s)
+			health=1
+		elif [ $health -eq 1 ] && [ $follow -eq 1 ]; then #up to up
+			upsec=$(date +%s)-$lastuptime
+			tput rc; tput el
+			if [ $debug -eq 1 ]; then
+				echo -en "debug:UTU;result=$result;rv=$rv;health=$health "
+			fi
+			echo -en "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${GREEN}ok${RESET} for $(displaytime "$upsec") | RTT ${rtt[$transmitted]}ms"
 		fi
-		health=1
 		# delay between pings
 		sleep "$interval"
 	fi
