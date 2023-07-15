@@ -159,7 +159,11 @@ function calc_statistics() {
 				rtt_min=$t
 			fi
 		done
-		rtt_avg=$(echo "scale=3;$rtt_avg/$received" | bc -l)
+		if [[ $received -gt 0 ]]; then
+			rtt_avg=$(echo "scale=3;$rtt_avg/$received" | bc -l)
+		else
+			rtt_avg=0
+		fi
 		rtt=()
 	fi
 }
