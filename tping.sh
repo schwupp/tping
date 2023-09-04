@@ -17,11 +17,12 @@
 # v5.0 2023-02-04 /lippl - stats-on-exit, PR #4
 # v5.1 2023-05-26 /schwupp - fix match/grep of ping-cmd in linux/macos
 # v6.0 2023-07-12 /schwupp - new feature: follow-mode, PR #6
+# v6.1 2023-09-04 /schwupp - refactoring, bugfixes, PR #12
 ####
 
 ## 0 - constants, variables, settings
 # actual Version
-VER="6.0_refactor-statistics"
+VER="6.1"
 
 ## default values for user-controlled variables
 # default for DNS-lookup when using a hostname instead of IP-address
