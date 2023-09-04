@@ -21,127 +21,87 @@
 
 ## 0 - constants, variables, settings
 # actual Version
-VER="6.0"
+VER="6.0_refactor-statistics"
 
-# user-controlled variables
+## default values for user-controlled variables
 # default for DNS-lookup when using a hostname instead of IP-address
-# use "6" for using IPv6 lookup (AAAA-record) as default and falling back to IPv4
+# use 6 for using IPv6 lookup (AAAA-record) as default and falling back to IPv4
 # use 4 for using IPv4 lookup (A-record) only
-# 
 ipv=6
 # enable(1)/disable(0) debug output
 debug=0
-
-# some other default values, mostly controlled by parameters
-#health stores tristate value meaning 0=dead, 1=alive, 2=ontime-startup-only-state (dead or alive)
-health=2
-#parameter for ping binary
+# deadtime in seconds for ping binary
 deadtime=1
-#time between pings. as we doing only single pings this is use as internal delay parameter 
+# time between pings in seconds
+# interval is handled by script after ping wait and various runtime executions
 interval=1
-#paramter for fuzzy-dead detection
-fuzzy=0
-myfuzzy=0
-#version of ip-protocol to be used (4/6)
-ip=0
-#follow-function (on/off)
+# limit for fuzzy-dead detection, where 0 disables fuzzy detection
+fuzzy_limit=0
+# follow-function on(1)/off(0)
 follow=1
 
-# some constants for bash-coloring
+## other default values and placeholders not controlled by parameters
+# health stores tristate value meaning 0=dead, 1=alive, 2=ontime-startup-only-state (dead or alive)
+health=2
+# placeholder for ther target ip to be filled after format checks respectively dns lookup
+ip=0
+# interval of successfull pings to intermediately calculate the statistic values for better performance at the end
+statint=10
+
+## statistical values
+# counter for total lost pings during all fuzzy detections
+fuzzy_lost=0
+# counter for total occurrences of fuzzy detections
+fuzzy_total=0
+# counter for current fuzzy detection
+fuzzy_cnt=0
+# total number of transmitted pings
+transmitted=0
+# total number of received pings
+received=0
+# total downtime in seconds, not including fuzzy pings
+downtotal=0
+# current downtime in seconds
+downsec=0
+# total uptime in seconds, including fuzzy pings
+uptotal=0
+# current uptime in seconds
+upsec=0
+# time at last flap to up, used to calulate upsec
+lastuptime=0
+# time at last flap to down, used to calulate downsec
+lastdowntime=0
+# total number of flaps between up and down
+flap=0
+# array to store all rtt times within statistics interval (statint)
+rtt=()
+rtt_min=0
+rtt_max=0
+rtt_avg=0
+
+## constants for bash-coloring
 RED="\033[0;31m"
 GREEN="\033[0;32m"
 YELLOW="\033[0;33m"
 RESET="\033[0m"
 
-# some statistical values
-lastuptime=0
-lastdowntime=0
-transmitted=0
-received=0
-downtotal=0
-downsec=0
-uptotal=0
-upsec=0
-flap=0
-rtt=()
-
-# Functions
-# print final statistics on exit
-function print_statistics() {
-	echo -e "\n--- $host ($hostdig) tping statistics ---"
-
-	if [[ $health -eq 1 ]]; then
-		upsec=$(date +%s)-$lastuptime
-		uptotal=$((uptotal + upsec))
-	elif [[ $health -eq 0 ]] ;then
-		downsec=$(date +%s)-$lastdowntime
-		downtotal=$((downtotal + downsec))
-	fi
-	echo "flapped $flap times, was up for $(displaytime $uptotal) and down for $(displaytime $downtotal)"
-
-	# check if 'bc' is installed on system, if yes print detailed (floating point) statistics
-	if [[ -n $(which bc) ]]; then
-
-	local loss
-	loss=$(echo "scale=2;100-$received/$transmitted*100" | bc -l)
-	echo "$transmitted packets transmitted, $received packets received, $loss% packet loss"
-
-	local rtt_min=0
-	local rtt_max=0
-	local rtt_avg=0
-	[[ -n "${rtt[1]}" ]] && rtt_min=${rtt[1]}
-	for t in "${rtt[@]}"; do
-		rtt_avg=$(echo "scale=3;$rtt_avg + $t" | bc -l)
-		if (($(echo "$t > $rtt_max" | bc -l))); then
-			rtt_max=$t
-		fi
-		if (($(echo "$t < $rtt_min" | bc -l))); then
-			rtt_min=$t
-		fi
-	done
-	rtt_avg=$(echo "scale=3;$rtt_avg/$transmitted" | bc -l)
-	echo "round-trip min/avg/max = $rtt_min/$rtt_avg/$rtt_max ms"
-
-	# if no 'bc' is there, print hint
-	else
-		echo -e "$transmitted packets transmitted, $received packets received\n"
-		echo "info: basic statistics only, please install 'bc' to get extended rtt-stats."
-	fi
-
-	exit 0
-}
-trap print_statistics INT
-
-# time-converter
-function displaytime {
-	local T=$1
-	local D=$((T/60/60/24))
-	local H=$((T/60/60%24))
-	local M=$((T/60%60))
-	local S=$((T%60))
-	[[ $D -gt 0 ]] && printf '%d d ' $D
-	[[ $H -gt 0 ]] && printf '%d h ' $H
-	[[ $M -gt 0 ]] && printf '%d min ' $M
-	[[ $D -gt 0 || $H -gt 0 || $M -gt 0 ]] && printf 'and '
-	printf '%d sec\n' $S
-}
-
+## Functions
+# print usage
 usage () {
-	echo -e "usage: $(basename "$0") [-vhd4] [-W deadtime] [-i interval]
+	echo -e "usage: $(basename "$0") [-vhd] [-W deadtime] [-i interval]
 		\t[-f fuzzy-pings (# failed pings before marking down)]
 		\t[-4 (use IPv4-only for DNS-lookup)]
-		\t[-s (use legacy static mode without rtt live-updates)]
 		\t<Traget IP or DNS-Name>"
 }
 
+# parse options
 _options () {
-	while getopts ":vhdW:i:f:s4" opt; do :
+	while getopts ":vhdW:i:f:4" opt; do :
 		case $opt in
 			4 ) ipv=4 ;;
 			W ) deadtime=$OPTARG ;;
 			i ) interval=$OPTARG ;;
-			f ) fuzzy=$OPTARG ;;
-			s ) follow=0 ;;
+			f ) fuzzy_limit=$OPTARG ;;
 			d ) debug=1 ;;
 			h ) usage
 				exit 0;;
@@ -167,6 +127,86 @@ _options () {
 	fi
 }
 
+# time-converter
+function displaytime {
+	local T=$1
+	local D=$((T/60/60/24))
+	local H=$((T/60/60%24))
+	local M=$((T/60%60))
+	local S=$((T%60))
+	[[ $D -gt 0 ]] && printf '%d d ' $D
+	[[ $H -gt 0 ]] && printf '%d h ' $H
+	[[ $M -gt 0 ]] && printf '%d min ' $M
+	[[ $D -gt 0 || $H -gt 0 || $M -gt 0 ]] && printf 'and '
+	printf '%d sec\n' $S
+}
+
+# calc interval statistics
+function calc_statistics() {
+	# check if 'bc' is installed on system, if yes calc detailed (floating point) statistics
+	if [[ -n $(which bc) ]]; then
+
+		[[ -n "${rtt[1]}" ]] && [[ -n $rtt_min ]] && rtt_min=${rtt[1]}
+		
+		local stat_cycles=$(($received / $statint))
+		rtt_avg=$(echo "scale=3;$rtt_avg * $statint * $stat_cycles" | bc -l)
+		for t in "${rtt[@]}"; do
+			rtt_avg=$(echo "scale=3;$rtt_avg + $t" | bc -l)
+			if (($(echo "$t > $rtt_max" | bc -l))); then
+				rtt_max=$t
+			fi
+			if (($(echo "$t < $rtt_min" | bc -l))); then
+				rtt_min=$t
+			fi
+		done
+		if [[ $received -gt 0 ]]; then
+			rtt_avg=$(echo "scale=3;$rtt_avg/$received" | bc -l)
+		else
+			rtt_avg=0
+		fi
+		rtt=()
+	fi
+}
+
+# print final statistics on exit
+function print_statistics() {
+	echo -e "\n--- $host ($hostdig) tping statistics ---"
+
+	if [[ $health -eq 1 ]]; then
+		upsec=$(date +%s)-$lastuptime
+		uptotal=$((uptotal + upsec))
+	elif [[ $health -eq 0 ]] ;then
+		downsec=$(date +%s)-$lastdowntime
+		downtotal=$((downtotal + downsec))
+	fi
+	echo "flapped $flap times, was up for $(displaytime $uptotal) and down for $(displaytime $downtotal)"
+
+	# if fuzzy detection is enabled and was detected before, print counters
+	if [ $fuzzy_limit -gt 0 ] && [ $fuzzy_total -gt 0 ]; then
+		echo "fuzzy detection was used $fuzzy_total times, with a total of $fuzzy_lost lost pings"
+	fi
+
+	# check if 'bc' is installed on system, if yes calc & print detailed (floating point) statistics
+	if [[ -n $(which bc) ]]; then
+		local loss
+		loss=$(echo "scale=2;100-$received/$transmitted*100" | bc -l)
+		echo "$transmitted packets transmitted, $received packets received, $loss% packet loss"
+
+		calc_statistics
+		echo "round-trip min/avg/max = $rtt_min/$rtt_avg/$rtt_max ms"
+	# if no 'bc' is there, print hint
+	else
+		echo -e "$transmitted packets transmitted, $received packets received\n"
+		echo "info: basic statistics only, please install 'bc' to get extended rtt-stats."
+	fi
+
+	exit 0
+}
+trap print_statistics INT
+
+### runtime execution 
+## 0 - handle arguments 
+# check for options 
 shift $((OPTIND -1))
 if [[ -z "$1" ]] ;then
 	usage
@@ -229,7 +269,7 @@ if [[ $debug -eq 1 ]]; then
 	echo -e "\targs = [ $# ]"
 	echo -e "\tdeadtime  = [ $deadtime ]"
 	echo -e "\tinterval = [ $interval ]"
-	echo -e "\tfuzzy = [ $fuzzy ]"
+	echo -e "\tfuzzy = [ $fuzzy_limit ]"
 	echo -e "\tfollow = [ $follow ]"
 	echo -e "\thost = [ $host ]"
 	echo -e "\tip = [ $ip ]"
@@ -242,8 +282,8 @@ if [[ -z "$host" ]]; then
 	exit 1
 fi
 
-if [[ "$fuzzy" -gt 0 ]]; then
-	echo -e "\nNote: fuzzy dead-detection in effect, will ignore up to $fuzzy failed pings (you will see a --FUZZY-- indicator if in action). Use for unreliable connections only.\n"
+if [[ "$fuzzy_limit" -gt 0 ]]; then
+	echo -e "\nNote: fuzzy dead-detection in effect, will ignore up to $fuzzy_limit failed pings (you will see a --FUZZY-- indicator if in action). Use for unreliable connections only.\n"
 fi
 
 ## 3 - do the ping in loop
@@ -252,17 +292,22 @@ while :; do
 	transmitted=$((transmitted + 1))
 	result=$($ping | grep 'icmp_seq=.*time=')
 	rv=$?
+	# ping failed
 	if [[ $rv -gt 0 ]]; then
-		myfuzzy=$((myfuzzy + 1))
-		if [[ $myfuzzy -gt "$fuzzy" ]]; then
-			if [[ $health -eq 2 ]]; then #start to down
+		fuzzy_cnt=$((fuzzy_cnt + 1))
+		if [[ $fuzzy_cnt -gt "$fuzzy_limit" ]]; then
+			# start to down
+			if [[ $health -eq 2 ]]; then
 				lastdowntime=$(date +%s)
+				tput rc; tput el
 				if [ $debug -eq 1 ]; then
 					echo -en "debug:STD;result=$result;rv=$rv;health=$health "
 				fi
 				echo -e "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${RED}down${RESET}"
+				tput sc
 				health=0
-			elif [[ $health -eq 1 ]]; then #up to down
+			# up to down
+			elif [[ $health -eq 1 ]]; then
 				lastdowntime=$(date +%s)
 				upsec=$(date +%s)-$lastuptime
 				uptotal=$((uptotal + upsec))
@@ -274,7 +319,8 @@ while :; do
 				echo -e "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${RED}down${RESET} [ok for $(displaytime "$upsec")]"
 				tput sc
 				health=0
-			elif [ $health -eq 0 ] && [ $follow -eq 1 ]; then #down to down
+			# down to down
+			elif [ $health -eq 0 ] && [ $follow -eq 1 ]; then
 				downsec=$(date +%s)-$lastdowntime
 				tput rc; tput el
 				if [ $debug -eq 1 ]; then
@@ -282,24 +328,34 @@ while :; do
 				fi
 				echo -en "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${RED}down${RESET} for $(displaytime "$downsec")"
 			fi
-		else #we're in fuzzy-detection now. pings fail, but will not consider down
-			if [ $myfuzzy -eq 1 ]; then #only on 1st fuzzy-ping, show hint, next successful ping will clear whole line
+		# we're in fuzzy-detection now. pings fail, but will not consider down
+		else
+			# only on 1st fuzzy-ping, show hint, next successful ping will clear whole line
+			if [ $fuzzy_cnt -eq 1 ]; then
 				echo -n " --FUZZY--"
 			fi
-			#NOP - for the user it's like pausing output what we tried to eliminate. this is the only point where tping behaves like that, but may be ok in this cornercase.
+			# NOP - for the user it's like pausing output what we tried to eliminate. this is the only point where tping behaves like that, but may be ok in this cornercase.
 		fi
-	else #ping successful
+	# ping successful
+	else
 		received=$((received + 1))
-		rtt[$transmitted]=$(echo "$result" | cut -d "=" -f 4  | cut -d ' ' -f 1)
-		myfuzzy=0
-		if [[ $health -eq 2 ]]; then #start to up
+		stat_cnt=$(($received % $statint))
+		rtt[$stat_cnt]=$(echo "$result" | cut -d "=" -f 4  | cut -d ' ' -f 1)
+		if [[ $stat_cnt -eq 0 ]]; then
+			calc_statistics
+		fi
+		# start to up
+		if [[ $health -eq 2 ]]; then
 			lastuptime=$(date +%s)
+			tput rc; tput el
 			if [ $debug -eq 1 ]; then
 				echo -en "debug:STU;result=$result;rv=$rv;health=$health "
 			fi
 			echo -e "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${GREEN}ok${RESET} | RTT ${rtt[$transmitted]}ms"
+			tput sc
 			health=1
-		elif [[ $health -eq 0 ]]; then #down to up
+		# down to up
+		elif [[ $health -eq 0 ]]; then
 			tput rc; tput el
 			downsec=$(date +%s)-$lastdowntime
 			downtotal=$((downtotal + downsec))
@@ -311,7 +367,8 @@ while :; do
 			tput sc
 			lastuptime=$(date +%s)
 			health=1
-		elif [ $health -eq 1 ] && [ $follow -eq 1 ]; then #up to up
+		# up to up
+		elif [ $health -eq 1 ] && [ $follow -eq 1 ]; then
 			upsec=$(date +%s)-$lastuptime
 			tput rc; tput el
 			if [ $debug -eq 1 ]; then
@@ -319,6 +376,14 @@ while :; do
 			fi
 			echo -en "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${GREEN}ok${RESET} for $(displaytime "$upsec") | RTT ${rtt[$transmitted]}ms"
 		fi
+
+		# update fuzzy stats if fuzzy detection is enabled and was detected
+		if [[ $fuzzy_limit -gt 0 ]] && [[ $fuzzy_cnt -gt 0 ]]; then
+			fuzzy_total=$((fuzzy_total + 1))
+			fuzzy_lost=$((fuzzy_lost + fuzzy_cnt))
+		fi
+		fuzzy_cnt=0
+
 		# delay between pings
 		sleep "$interval"
 	fi
