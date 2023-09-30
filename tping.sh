@@ -352,7 +352,7 @@ while :; do
 			if [ $debug -eq 1 ]; then
 				echo -en "debug:STU;result=$result;rv=$rv;health=$health "
 			fi
-			echo -e "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${GREEN}ok${RESET} | RTT ${rtt[$transmitted]}ms"
+			echo -e "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${GREEN}ok${RESET} | RTT ${rtt[$stat_cnt]}ms"
 			tput sc
 			health=1
 		# down to up
@@ -364,7 +364,7 @@ while :; do
 			if [ $debug -eq 1 ]; then
 				echo -en "debug:DTU;result=$result;rv=$rv;health=$health "
 			fi
-			echo -e "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${GREEN}ok${RESET} [down for $(displaytime "$downsec")] | RTT ${rtt[$transmitted]}ms"
+			echo -e "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${GREEN}ok${RESET} [down for $(displaytime "$downsec")] | RTT ${rtt[$stat_cnt]}ms"
 			tput sc
 			lastuptime=$(date +%s)
 			health=1
@@ -375,7 +375,7 @@ while :; do
 			if [ $debug -eq 1 ]; then
 				echo -en "debug:UTU;result=$result;rv=$rv;health=$health "
 			fi
-			echo -en "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${GREEN}ok${RESET} for $(displaytime "$upsec") | RTT ${rtt[$transmitted]}ms"
+			echo -en "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${GREEN}ok${RESET} for $(displaytime "$upsec") | RTT ${rtt[$stat_cnt]}ms"
 		fi
 
 		# update fuzzy stats if fuzzy detection is enabled and was detected
