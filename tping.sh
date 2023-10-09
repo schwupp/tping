@@ -342,9 +342,6 @@ while :; do
 		received=$((received + 1))
 		stat_cnt=$(($received % $statint))
 		rtt[$stat_cnt]=$(echo "$result" | cut -d "=" -f 4  | cut -d ' ' -f 1)
-		if [[ $stat_cnt -eq 0 ]]; then
-			calc_statistics
-		fi
 		# start to up
 		if [[ $health -eq 2 ]]; then
 			lastuptime=$(date +%s)
@@ -376,6 +373,11 @@ while :; do
 				echo -en "debug:UTU;result=$result;rv=$rv;health=$health "
 			fi
 			echo -en "$(date +'%Y-%m-%d %H:%M:%S') | host $host ($hostdig) is ${GREEN}ok${RESET} for $(displaytime "$upsec") | RTT ${rtt[$stat_cnt]}ms"
+		fi
+
+		# update rtt stats
+		if [[ $stat_cnt -eq 0 ]]; then
+			calc_statistics
 		fi
 
 		# update fuzzy stats if fuzzy detection is enabled and was detected
