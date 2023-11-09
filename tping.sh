@@ -22,7 +22,7 @@
 
 ## 0 - constants, variables, settings
 # actual Version
-VER="6.1_fix-rtt"
+VER="6.1_fix-static"
 
 ## default values for user-controlled variables
 # default for DNS-lookup when using a hostname instead of IP-address
