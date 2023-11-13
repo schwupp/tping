@@ -22,7 +22,7 @@
 
 ## 0 - constants, variables, settings
 # actual Version
-VER="6.1_fix-rtt"
+VER="6.1_fix-static"
 
 ## default values for user-controlled variables
 # default for DNS-lookup when using a hostname instead of IP-address
@@ -92,17 +92,19 @@ usage () {
 	echo -e "usage: $(basename "$0") [-vhd] [-W deadtime] [-i interval]
 		\t[-f fuzzy-pings (# failed pings before marking down)]
 		\t[-4 (use IPv4-only for DNS-lookup)]
+		\t[-s (use legacy static mode without rtt live-updates)]
 		\t<Traget IP or DNS-Name>"
 }
 
 # parse options
 _options () {
-	while getopts ":vhdW:i:f:4" opt; do :
+	while getopts ":vhdW:i:f:s4" opt; do :
 		case $opt in
 			4 ) ipv=4 ;;
 			W ) deadtime=$OPTARG ;;
 			i ) interval=$OPTARG ;;
 			f ) fuzzy_limit=$OPTARG ;;
+			s ) follow=0 ;;
 			d ) debug=1 ;;
 			h ) usage
 				exit 0;;
