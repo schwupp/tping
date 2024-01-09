@@ -23,7 +23,7 @@
 
 ## 0 - constants, variables, settings
 # actual Version
-VER="6.3"
+VER="6.3_fix-multiple-dig-ips"
 
 ## default values for user-controlled variables
 # default for DNS-lookup when using a hostname instead of IP-address
@@ -228,21 +228,25 @@ elif [[ $host =~ (([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1
 	ipv=6
 # it's a name-parameter
 else
-	if [[ $ipv -eq 6 ]]; then
-		hostdig=$(dig AAAA +search +short +nocookie "$host"  | grep -v '\.$')
-		if [[ -z "$hostdig" ]]; then
-			echo -e "${YELLOW}Warning: No v6 DNS for $host - trying v4 DNS...${RESET}"
-			ipv=4
-		fi
-	fi
-	if [[ $ipv -eq 4 ]]; then
-		hostdig=$(dig A +search +short "$host" | grep -v '\.$')
-		if [[ -z "$hostdig" ]]; then
-			echo -e "${RED}Error: No v4 DNS for $host - exiting now.${RESET}"
-			exit 1
-		fi
-	fi
-	ip=$hostdig
+        if [[ $ipv -eq 6 ]]; then
+                declare -a hostdig2=($(dig AAAA +search +short +nocookie "$host"  | grep -v '\.$'))
+                if [[ ${#hostdig2[@]} -gt 1 ]]; then
+                        echo -e "${YELLOW}Warning:${RESET} $host has multiple IPv6 addresses (${hostdig2[@]})- using first one."
+                        hostdig=${hostdig2[0]}
+                elif [[ ${#hostdig2[@]} -eq 0 ]]; then
+                        echo -e "${YELLOW}Warning: No v6 DNS for $host - trying v4 DNS...${RESET}"
+                        ipv=4
+                fi
+		hostdig=${hostdig2[0]}
+        fi
+        if [[ $ipv -eq 4 ]]; then
+                hostdig=$(dig A +search +short "$host" | grep -v '\.$')
+                if [[ -z "$hostdig" ]]; then
+                        echo -e "${RED}Error: No v4 DNS for $host - exiting now.${RESET}"
+                        exit 1
+                fi
+        fi
+        ip=$hostdig
 fi
 
 ## 2 - build ping-cmd
