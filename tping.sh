@@ -23,7 +23,7 @@
 
 ## 0 - constants, variables, settings
 # actual Version
-VER="6.2"
+VER="6.3"
 
 ## default values for user-controlled variables
 # default for DNS-lookup when using a hostname instead of IP-address
@@ -77,7 +77,7 @@ lastdowntime=0
 flap=0
 # array to store all rtt times within statistics interval (statint)
 rtt=()
-rtt_min=0
+rtt_min=""
 rtt_max=0
 rtt_avg=0
 
@@ -148,11 +148,11 @@ function displaytime {
 # calc interval statistics
 function calc_statistics() {
 	# check if 'bc' is installed on system, if yes calc detailed (floating point) statistics
-	if [[ -n $(which bc) ]]; then
+	if [[ -n $(which bc) ]] && [[ -n "${rtt[1]}" ]]; then
 
-		[[ -n "${rtt[1]}" ]] && [[ -n $rtt_min ]] && rtt_min=${rtt[1]}
+		[[ -z $rtt_min ]] && rtt_min=${rtt[1]}
 		
-		local stat_cycles=$(($received / $statint))
+		local stat_cycles=$((($received - 1) / $statint))
 		rtt_avg=$(echo "scale=3;$rtt_avg * $statint * $stat_cycles" | bc -l)
 		for t in "${rtt[@]}"; do
 			rtt_avg=$(echo "scale=3;$rtt_avg + $t" | bc -l)
@@ -163,11 +163,7 @@ function calc_statistics() {
 				rtt_min=$t
 			fi
 		done
-		if [[ $received -gt 0 ]]; then
-			rtt_avg=$(echo "scale=3;$rtt_avg/$received" | bc -l)
-		else
-			rtt_avg=0
-		fi
+		rtt_avg=$(echo "scale=3;$rtt_avg/$received" | bc -l)
 		rtt=()
 	fi
 }
@@ -233,7 +229,7 @@ elif [[ $host =~ (([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1
 # it's a name-parameter
 else
 	if [[ $ipv -eq 6 ]]; then
-		hostdig=$(dig AAAA +search +short "$host"  | grep -v '\.$')
+		hostdig=$(dig AAAA +search +short +nocookie "$host"  | grep -v '\.$')
 		if [[ -z "$hostdig" ]]; then
 			echo -e "${YELLOW}Warning: No v6 DNS for $host - trying v4 DNS...${RESET}"
 			ipv=4
