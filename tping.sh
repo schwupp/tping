@@ -229,7 +229,7 @@ elif [[ $host =~ (([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1
 # it's a name-parameter
 else
 	if [[ $ipv -eq 6 ]]; then
-		hostdig=$(dig AAAA +search +short "$host"  | grep -v '\.$')
+		hostdig=$(dig AAAA +search +short +nocookie "$host"  | grep -v '\.$')
 		if [[ -z "$hostdig" ]]; then
 			echo -e "${YELLOW}Warning: No v6 DNS for $host - trying v4 DNS...${RESET}"
 			ipv=4
