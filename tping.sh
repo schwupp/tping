@@ -77,7 +77,7 @@ lastdowntime=0
 flap=0
 # array to store all rtt times within statistics interval (statint)
 rtt=()
-rtt_min=0
+rtt_min=""
 rtt_max=0
 rtt_avg=0
 
@@ -148,11 +148,11 @@ function displaytime {
 # calc interval statistics
 function calc_statistics() {
 	# check if 'bc' is installed on system, if yes calc detailed (floating point) statistics
-	if [[ -n $(which bc) ]]; then
+	if [[ -n $(which bc) ]] && [[ -n "${rtt[1]}" ]]; then
 
-		[[ -n "${rtt[1]}" ]] && [[ -n $rtt_min ]] && rtt_min=${rtt[1]}
+		[[ -z $rtt_min ]] && rtt_min=${rtt[1]}
 		
-		local stat_cycles=$(($received / $statint))
+		local stat_cycles=$((($received - 1) / $statint))
 		rtt_avg=$(echo "scale=3;$rtt_avg * $statint * $stat_cycles" | bc -l)
 		for t in "${rtt[@]}"; do
 			rtt_avg=$(echo "scale=3;$rtt_avg + $t" | bc -l)
@@ -163,11 +163,7 @@ function calc_statistics() {
 				rtt_min=$t
 			fi
 		done
-		if [[ $received -gt 0 ]]; then
-			rtt_avg=$(echo "scale=3;$rtt_avg/$received" | bc -l)
-		else
-			rtt_avg=0
-		fi
+		rtt_avg=$(echo "scale=3;$rtt_avg/$received" | bc -l)
 		rtt=()
 	fi
 }
