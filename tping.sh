@@ -23,7 +23,7 @@
 
 ## 0 - constants, variables, settings
 # actual Version
-VER="6.3_fix-multiple-dig-ips"
+VER="6.3"
 
 ## default values for user-controlled variables
 # default for DNS-lookup when using a hostname instead of IP-address
