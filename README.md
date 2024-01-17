@@ -20,8 +20,13 @@ If you use tping script, you only get one line per status-change. You have to re
     2022-03-23 14:40:30 | host 192.168.0.1 (host1.domain.name) is ok | RTT 2.13ms
     2022-03-23 14:41:00 | host 192.168.0.1 (host1.domain.name) is down [ok for 30 sec]
     2022-03-23 14:41:21 | host 192.168.0.1 (host1.domain.name) is ok [down for 21 sec] | RTT 1.42ms
+    --- host1.domain.name (192.168.0.1) tping statistics ---
+    flapped 0 times, was up for 51 sec and down for 0 sec
+    51 packets transmitted, 30 packets received, 61% packet loss
+    round-trip min/avg/max = 0.616/1.861/5.02 ms
 
-- What you lose, is the continous reading of the RTT (you only get the first one)
+
+- ~~What you lose, is the continous reading of the RTT (you only get the first one)~~ integrated since tping 6.1
 - What you win is a clear, timestamped view when and how long a target host went off or online
 
 ## Installation
